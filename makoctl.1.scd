@@ -34,12 +34,6 @@ Sends IPC commands to the running mako daemon via dbus.
 
 	If no action is found, or no action is selected, _makoctl_ will return non-zero.
 
-	Examples:
-
-		```
-		makoctl menu dmenu -p 'Select Action: '
-		makoctl menu wofi -d -p 'Choose Action: '
-		```
 
 *list*
 	Retrieve a list of current notifications.
