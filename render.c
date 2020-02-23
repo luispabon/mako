@@ -45,15 +45,8 @@ static void set_rounded_rectangle(cairo_t *cairo, double x, double y, double wid
 	y *= scale;
 	width *= scale;
 	height *= scale;
+	radius *= scale;
 	double degrees = M_PI / 180.0;
-
-	if (width < radius * 2) {
-		width = radius * 2;
-	}
-
-	if (height < radius * 2) {
-		height = radius * 2;
-	}
 
 	cairo_new_sub_path(cairo);
 	cairo_arc(cairo, x + width - radius, y + radius, radius, -90 * degrees, 0 * degrees);
@@ -166,44 +159,68 @@ static int render_notification(cairo_t *cairo, struct mako_state *state,
 		notif_height = icon->height + border_size + padding_height;
 	}
 
-	// Render border
-	set_source_u32(cairo, style->colors.border);
+	if (notif_height < radius * 2) {
+		notif_height = radius * 2 + border_size;
+	}
+
+	int notif_background_width = notif_width - style->border_size;
+
+	// Define the shape of the notification. The stroke is drawn centered on
+	// the edge of the fill, so we need to inset the shape by half the
+	// border_size.
 	set_rounded_rectangle(cairo,
 		offset_x + style->border_size / 2.0,
 		offset_y + style->border_size / 2.0,
-		notif_width - style->border_size,
+		notif_background_width,
 		notif_height - style->border_size,
 		scale, radius);
-	cairo_save(cairo);
-	cairo_set_line_width(cairo, style->border_size * scale);
-	cairo_stroke_preserve(cairo);
-	cairo_restore(cairo);
 
+	// Render background, keeping the path.
+	set_source_u32(cairo, style->colors.background);
+	cairo_fill_preserve(cairo);
 
-	int notif_background_width = notif_width - border_size;
-	int progress_width = notif_background_width * progress / 100;
+	// Keep a copy of the path. We need it later to draw the border on top, but
+	// we have to create a new one for progress in the meantime.
+	cairo_path_t *border_path = cairo_copy_path(cairo);
+
+	// Render progress. We need to render this as a normal rectangle, but clip
+	// it to the rounded rectangle we drew for the background. We also inset it
+	// a bit further so that 0 and 100 percent are aligned to the inside edge
+	// of the border and we can actually see the whole range.
+	int progress_width =
+		(notif_background_width - style->border_size) * progress / 100;
 	if (progress_width < 0) {
 		progress_width = 0;
 	} else if (progress_width > notif_background_width) {
-		progress_width = notif_background_width;
+		progress_width = notif_background_width - style->border_size;
 	}
 
-	// Render background
-	set_source_u32(cairo, style->colors.background);
-	cairo_fill(cairo);
-
-	// Render progress
 	cairo_save(cairo);
+	cairo_clip(cairo);
 	cairo_set_operator(cairo, style->colors.progress.operator);
 	set_source_u32(cairo, style->colors.progress.value);
 	set_rounded_rectangle(cairo,
-		offset_x + style->border_size,
-		offset_y + style->border_size,
-		progress_width,
-		notif_height - border_size,
-		scale, radius);
+			offset_x + style->border_size,
+			offset_y + style->border_size,
+			progress_width,
+			notif_height - style->border_size,
+			scale, 0);
 	cairo_fill(cairo);
 	cairo_restore(cairo);
+
+	// Render border, using the SOURCE operator to clip away the background
+	// and progress beneath. This is the only way to make the background appear
+	// to line up with the inside of a rounded border, while not revealing any
+	// of the background when using a translucent border color.
+	cairo_save(cairo);
+	cairo_append_path(cairo, border_path);
+	set_source_u32(cairo, style->colors.border);
+	cairo_set_operator(cairo, CAIRO_OPERATOR_SOURCE);
+	cairo_set_line_width(cairo, style->border_size * scale);
+	cairo_stroke(cairo);
+	cairo_restore(cairo);
+
+	cairo_path_destroy(border_path);
 
 	if (icon != NULL) {
 		// Render icon
@@ -258,6 +275,11 @@ int render(struct mako_state *state, struct pool_buffer *buffer, int scale) {
 	int pending_bottom_margin = 0;
 	struct mako_notification *notif;
 	wl_list_for_each(notif, &state->notifications, link) {
+		if (config->max_visible >= 0 &&
+				visible_count >= (size_t)config->max_visible) {
+			break;
+		}
+
 		// Note that by this point, everything in the style is guaranteed to
 		// be specified, so we don't need to check.
 		struct mako_style *style = &notif->style;
@@ -301,10 +323,6 @@ int render(struct mako_state *state, struct pool_buffer *buffer, int scale) {
 			++visible_count;
 		}
 
-		if (config->max_visible >= 0 &&
-				visible_count >= (size_t)config->max_visible) {
-			break;
-		}
 	}
 
 	size_t count = wl_list_length(&state->notifications);

@@ -1,7 +1,7 @@
 project(
 	'mako',
 	'c',
-	version: '1.3.0',
+	version: '1.4.1',
 	license: 'MIT',
 	meson_version: '>=0.47.0',
 	default_options: [
@@ -102,12 +102,12 @@ configure_file(
 	install_dir: datadir + '/dbus-1/services',
 )
 
-scdoc = find_program('scdoc', required: get_option('man-pages'))
+scdoc = dependency('scdoc', required: get_option('man-pages'), version: '>= 1.9.7')
 
 if scdoc.found()
 	sh = find_program('sh')
 
-	man_pages = ['mako.1.scd', 'makoctl.1.scd']
+	man_pages = ['mako.1.scd', 'mako.5.scd', 'makoctl.1.scd']
 
 	mandir = get_option('mandir')
 
@@ -121,7 +121,7 @@ if scdoc.found()
 			input: src,
 			output: output,
 			command: [
-				sh, '-c', '@0@ < @INPUT@ > @1@'.format(scdoc.path(), output)
+				sh, '-c', '@0@ < @INPUT@ > @1@'.format(scdoc.get_pkgconfig_variable('scdoc'), output)
 			],
 			install: true,
 			install_dir: '@0@/man@1@'.format(mandir, section)
