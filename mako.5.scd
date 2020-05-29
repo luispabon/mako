@@ -159,9 +159,18 @@ _none_, _dismiss_, _dismiss-all_, _dismiss-group_, _invoke-default-action_,
 	the theme metadata. Therefore, if you want to search parent themes,
 	you'll need to add them to the path manually.
 
+	The path should be the root of the icon theme, the categories and
+	resolutions will be searched for the most appropriate match.
+
 	/usr/share/icons/hicolor and /usr/share/pixmaps are always searched.
 
 	Default: ""
+
+*icon-location* = _position_
+	Position of the icon relative to the displayed text. Valid options are
+	_left_, _right_, _top_ and _bottom_.
+
+	Default: left
 
 *markup* = 0|1
 	If 1, enable Pango markup. If 0, disable Pango markup. If enabled, Pango
