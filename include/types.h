@@ -12,6 +12,7 @@ struct mako_color {
 
 bool parse_boolean(const char *string, bool *out);
 bool parse_int(const char *string, int *out);
+bool parse_int_ge(const char *string, int *out, int min);
 bool parse_color(const char *string, uint32_t *out);
 bool parse_mako_color(const char *string, struct mako_color *out);
 
@@ -48,6 +49,7 @@ struct mako_criteria_spec {
 	bool category;
 	bool desktop_entry;
 	bool summary;
+	bool summary_pattern;
 	bool body;
 	bool group_index;
 	bool grouped;

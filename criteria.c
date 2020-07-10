@@ -1,5 +1,6 @@
 #define _POSIX_C_SOURCE 200809L
 #include <assert.h>
+#include <regex.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -11,6 +12,7 @@
 #include "config.h"
 #include "criteria.h"
 #include "notification.h"
+#include "surface.h"
 
 struct mako_criteria *create_criteria(struct mako_config *config) {
 	struct mako_criteria *criteria = calloc(1, sizeof(struct mako_criteria));
@@ -32,6 +34,7 @@ void destroy_criteria(struct mako_criteria *criteria) {
 	free(criteria->category);
 	free(criteria->desktop_entry);
 	free(criteria->summary);
+	regfree(&criteria->summary_pattern);
 	free(criteria->body);
 	free(criteria->raw_string);
 	free(criteria);
@@ -84,6 +87,19 @@ bool match_criteria(struct mako_criteria *criteria,
 	if (spec.summary &&
 			strcmp(criteria->summary, notif->summary) != 0) {
 		return false;
+	}
+
+	if (spec.summary_pattern) {
+		int ret = regexec(&criteria->summary_pattern, notif->summary, 0, NULL, 0);
+		if (ret != 0) {
+			if (ret != REG_NOMATCH) {
+				size_t errlen = regerror(ret, &criteria->summary_pattern, NULL, 0);
+				char errbuf[errlen];
+				regerror(ret, &criteria->summary_pattern, errbuf, sizeof(errbuf));
+				fprintf(stderr, "failed to match regex: %s\n", errbuf);
+			}
+			return false;
+		}
 	}
 
 	if (spec.body &&
@@ -263,9 +279,24 @@ bool apply_criteria_field(struct mako_criteria *criteria, char *token) {
 			criteria->spec.group_index = true;
 			return true;
 		} else if (strcmp(key, "summary") == 0) {
-			// TODO: convert to regex, currently only exact matching
 			criteria->summary = strdup(value);
+			if (criteria->spec.summary_pattern) {
+				fprintf(stderr, "Cannot set both summary and summary~ regex.\n");
+				return false;
+			}
 			criteria->spec.summary = true;
+			return true;
+		} else if (strcmp(key, "summary~") == 0) {
+			if (regcomp(&criteria->summary_pattern, value,
+					REG_EXTENDED | REG_NOSUB)) {
+				fprintf(stderr, "Invalid summary~ regex '%s'\n", value);
+				return false;
+			}
+			if (criteria->spec.summary) {
+				fprintf(stderr, "Cannot set both summary and summary~ regex.\n");
+				return false;
+			}
+			criteria->spec.summary_pattern = true;
 			return true;
 		} else {
 			// TODO: body, once we support regex and they're useful.
@@ -335,6 +366,21 @@ ssize_t apply_each_criteria(struct wl_list *criteria_list,
 		if (!apply_style(&notif->style, &criteria->style)) {
 			return -1;
 		}
+	}
+
+	struct mako_surface *surface;
+	wl_list_for_each(surface, &notif->state->surfaces, link) {
+		if (!strcmp(surface->configured_output, notif->style.output) &&
+				surface->anchor == notif->style.anchor &&
+				surface->layer == notif->style.layer) {
+			notif->surface = surface;
+			break;
+		}
+	}
+
+	if (!notif->surface) {
+		notif->surface = create_surface(notif->state, notif->style.output,
+			notif->style.layer, notif->style.anchor, notif->style.max_visible);
 	}
 
 	return match_count;

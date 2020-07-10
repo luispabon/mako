@@ -32,8 +32,24 @@ bool parse_boolean(const char *string, bool *out) {
 bool parse_int(const char *string, int *out) {
 	errno = 0;
 	char *end;
-	*out = (int)strtol(string, &end, 10);
-	return errno == 0 && end[0] == '\0';
+	int parsed;
+	parsed = (int)strtol(string, &end, 10);
+	if (errno == 0 && end[0] == '\0') {
+		*out = parsed;
+		return true;
+	} else {
+		return false;
+	}
+}
+
+bool parse_int_ge(const char *string, int *out, int min) {
+	int parsed;
+	if (parse_int(string, &parsed) && parsed >= min) {
+		*out = parsed;
+		return true;
+	} else {
+		return false;
+	}
 }
 
 bool parse_color(const char *string, uint32_t *out) {
@@ -80,6 +96,7 @@ bool parse_mako_color(const char *string, struct mako_color *out) {
 
 		token = strtok_r(NULL, " \t", &saveptr);
 		if (token == NULL) {
+			free(components);
 			return false;
 		}
 	}
@@ -191,6 +208,7 @@ bool parse_criteria_spec(const char *string, struct mako_criteria_spec *out) {
 		} else if (strcmp(token, "none") == 0) {
 			out->none = true;
 		} else {
+			free(components);
 			fprintf(stderr, "Unknown criteria field '%s'\n", token);
 			return false;
 		}
