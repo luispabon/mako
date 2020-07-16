@@ -20,7 +20,7 @@ Homepage: https://github.com/emersion/mako
 
 Package: mako
 Architecture: any
-Depends: ${shlibs:Depends}, ${misc:Depends}, libwlroots0 (>=0.4)
+Depends: ${shlibs:Depends}, ${misc:Depends}, libwlroots5 (>=0.4)
 Recommends: sway-backgrounds
 Suggests: swayidle, swaylock, swaybg
 Description: A lightweight notification daemon for Wayland.
